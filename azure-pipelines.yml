@@ -32,3 +32,25 @@ steps:
   inputs:
     platform: '$(buildPlatform)'
     configuration: '$(buildConfiguration)'
+
+- stage: Release
+  jobs:
+  - job: default
+    variables:
+    - name: NewLeaseId
+      value: $[ stageDependencies.Build.default.outputs['RetainOnSuccess.newLeaseId']]
+    steps:
+    - task: PowerShell@2
+      condition: and(succeeded(), not(canceled()))
+      name: RetainOnSuccess
+      displayName: Retain on Success
+      inputs:
+        failOnStderr: true
+        targetType: 'inline'
+        script: |
+          $contentType = "application/json";
+          $headers = @{ Authorization = 'Bearer $(System.AccessToken)' };
+          $rawRequest = @{ daysValid = 365; leaseId = $newLeaseId; ownerId = 'User:$(Build.RequestedForId)' };
+          $request = ConvertTo-Json @($rawRequest);
+          $uri = "$(System.CollectionUri)$(System.TeamProject)/_apis/build/retention/leases?api-version=6.0-preview.2";
+          Invoke-RestMethod -uri $uri -method PATCH -Headers $headers -ContentType $contentType -Body $request;    
